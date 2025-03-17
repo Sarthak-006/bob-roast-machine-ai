@@ -2,6 +2,7 @@ import streamlit as st
 import groq
 import os
 from dotenv import load_dotenv
+from groq import Groq
 import json
 import requests
 from PIL import Image
@@ -10,10 +11,18 @@ import base64
 from datetime import datetime
 
 # Load environment variables
-load_dotenv()
+try:
+    # First try from Streamlit secrets
+    api_key = st.secrets["general"]["api_key"]
+except Exception as e:
+    # Fallback to environment variable if needed
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        st.error("Error: Groq API key not found. Please set it in Streamlit secrets or as an environment variable.")
+        st.stop()
 
-# Initialize Groq client
-client = groq.Groq(api_key=os.getenv("GROQ_API_KEY"))
+# Initialize Groq client with the API key
+client = Groq(api_key=api_key)
 
 # Set page config
 st.set_page_config(
