@@ -24,6 +24,51 @@ except Exception as e:
 # Initialize Groq client with the API key
 client = Groq(api_key=api_key)
 
+# Define fallback models if primary models are unavailable
+FALLBACK_MODELS = {
+    "mixtral-8x7b-32768": "llama3-8b-8192",  # Fallback to Llama if Mixtral is unavailable
+    "llama3-70b-8192": "llama3-8b-8192"      # Fallback to smaller Llama if larger is unavailable
+}
+
+# Helper function to validate API messages
+def validate_messages(messages):
+    """Ensure all message content fields are strings to prevent Groq API errors"""
+    for msg in messages:
+        if 'content' in msg and msg['content'] is not None and not isinstance(msg['content'], str):
+            msg['content'] = str(msg['content'])
+    return messages
+
+# Helper function to attempt API call with fallback models
+def safe_completion_create(messages, model, temperature, max_tokens, **kwargs):
+    """Try to create a completion with fallback to alternative models if needed"""
+    try:
+        return client.chat.completions.create(
+            messages=validate_messages(messages),
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs
+        )
+    except Exception as primary_error:
+        # If we have a fallback model for this one, try it
+        fallback_model = FALLBACK_MODELS.get(model)
+        if fallback_model:
+            try:
+                st.warning(f"Primary model {model} unavailable. Using fallback model {fallback_model}.")
+                return client.chat.completions.create(
+                    messages=validate_messages(messages),
+                    model=fallback_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    **kwargs
+                )
+            except Exception as fallback_error:
+                # Both primary and fallback failed
+                raise Exception(f"Primary error: {str(primary_error)}. Fallback error: {str(fallback_error)}")
+        else:
+            # No fallback available, raise the original error
+            raise primary_error
+
 # Set page config
 st.set_page_config(
     page_title="Bob Buster - AI Comedy Agent",
@@ -220,7 +265,7 @@ def generate_team_comedy(topic, style, intensity, temperature):
             team_prompts["writer"],
             {"role": "user", "content": f"Create a clever setup for a joke about {topic}. Keep it under 50 words."}
         ]
-        writer_completion = client.chat.completions.create(
+        writer_completion = safe_completion_create(
             messages=writer_messages,
             model=model_assignments["writer"],
             temperature=temperature,
@@ -234,7 +279,7 @@ def generate_team_comedy(topic, style, intensity, temperature):
             team_prompts["roaster"],
             {"role": "user", "content": f"Add a savage punchline to this setup:\n{setup}\nMake it sharp and memorable."}
         ]
-        roaster_completion = client.chat.completions.create(
+        roaster_completion = safe_completion_create(
             messages=roaster_messages,
             model=model_assignments["roaster"],
             temperature=temperature,
@@ -248,7 +293,7 @@ def generate_team_comedy(topic, style, intensity, temperature):
             team_prompts["refiner"],
             {"role": "user", "content": f"Polish this joke to perfection:\n{raw_joke}\nMake it concise and impactful."}
         ]
-        refiner_completion = client.chat.completions.create(
+        refiner_completion = safe_completion_create(
             messages=refiner_messages,
             model=model_assignments["refiner"],
             temperature=temperature,
@@ -285,16 +330,20 @@ with tab1:
                     {"role": "user", "content": f"Generate 3 jokes about {topic}. Make them sharp, witty, and slightly savage."}
                 ]
                 
-                chat_completion = client.chat.completions.create(
-                    messages=messages,
-                    model="mixtral-8x7b-32768",
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=0.9
-                )
-                
-                jokes = chat_completion.choices[0].message.content
-                st.markdown(jokes)
+                try:
+                    chat_completion = safe_completion_create(
+                        messages=messages,
+                        model="mixtral-8x7b-32768",
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=0.9
+                    )
+                    
+                    jokes = chat_completion.choices[0].message.content
+                    st.markdown(jokes)
+                except Exception as e:
+                    st.error(f"Error generating jokes: {str(e)}")
+                    st.write("Please try again with a different topic or settings.")
         else:
             st.warning("Please enter a topic!")
 
@@ -311,16 +360,20 @@ with tab2:
                     {"role": "user", "content": f"Create a savage roast for {name}. Context: {context}"}
                 ]
                 
-                chat_completion = client.chat.completions.create(
-                    messages=messages,
-                    model="mixtral-8x7b-32768",
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=0.9
-                )
-                
-                roast = chat_completion.choices[0].message.content
-                st.markdown(roast)
+                try:
+                    chat_completion = safe_completion_create(
+                        messages=messages,
+                        model="mixtral-8x7b-32768",
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=0.9
+                    )
+                    
+                    roast = chat_completion.choices[0].message.content
+                    st.markdown(roast)
+                except Exception as e:
+                    st.error(f"Error generating roast: {str(e)}")
+                    st.write("Please try again with a different name or settings.")
         else:
             st.warning("Please enter a name to roast!")
 
@@ -338,16 +391,20 @@ with tab3:
                 {"role": "user", "content": "Create a 5-minute comedy show with a mix of jokes, roasts, and improv. Include transitions and audience interactions."}
             ]
             
-            chat_completion = client.chat.completions.create(
-                messages=messages,
-                model="mixtral-8x7b-32768",
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=0.9
-            )
-            
-            show = chat_completion.choices[0].message.content
-            st.markdown(show)
+            try:
+                chat_completion = safe_completion_create(
+                    messages=messages,
+                    model="mixtral-8x7b-32768",
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=0.9
+                )
+                
+                show = chat_completion.choices[0].message.content
+                st.markdown(show)
+            except Exception as e:
+                st.error(f"Error generating comedy show: {str(e)}")
+                st.write("Please try again with different settings.")
 
 with tab4:
     st.header("Visual Comedy & Memes")
@@ -370,45 +427,55 @@ with tab4:
         if meme_topic:
             with st.spinner("Creating savage memes..."):
                 try:
-                    messages = [
-                        {"role": "system", "content": create_system_prompt(style, intensity)},
-                        {"role": "user", "content": generate_meme_prompt(meme_topic, style, intensity)}
-                    ]
-                    
-                    chat_completion = client.chat.completions.create(
-                        messages=messages,
-                        model="mixtral-8x7b-32768",
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        response_format={"type": "json_object"}
-                    )
-                    
                     try:
-                        meme_data = json.loads(chat_completion.choices[0].message.content)
+                        messages = [
+                            {"role": "system", "content": create_system_prompt(style, intensity)},
+                            {"role": "user", "content": generate_meme_prompt(meme_topic, style, intensity)}
+                        ]
                         
-                        for i in range(meme_count):
-                            template = template_choice if template_choice != "Random" else meme_data.get('meme_template', 'drake')
-                            meme_url = get_meme_image(
-                                template,
-                                meme_data.get('top_text', 'Error'),
-                                meme_data.get('bottom_text', 'generating meme')
-                            )
-                            
-                            st.image(meme_url, caption=meme_data.get('description', ''), use_column_width=True)
-                            st.markdown("---")
-                    
-                    except json.JSONDecodeError:
-                        st.error("Failed to parse meme data. Trying again with simplified format...")
-                        # Fallback to simpler format
-                        meme_url = get_meme_image(
-                            template_choice if template_choice != "Random" else "drake",
-                            "When the meme",
-                            "Doesn't generate properly"
+                        chat_completion = safe_completion_create(
+                            messages=messages,
+                            model="mixtral-8x7b-32768",
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            response_format={"type": "json_object"}
                         )
-                        st.image(meme_url, caption="Fallback meme", use_column_width=True)
-                
+                        
+                        try:
+                            meme_data = json.loads(chat_completion.choices[0].message.content)
+                            
+                            for i in range(meme_count):
+                                template = template_choice if template_choice != "Random" else meme_data.get('meme_template', 'drake')
+                                meme_url = get_meme_image(
+                                    template,
+                                    meme_data.get('top_text', 'Error'),
+                                    meme_data.get('bottom_text', 'generating meme')
+                                )
+                                
+                                st.image(meme_url, caption=meme_data.get('description', ''), use_column_width=True)
+                                st.markdown("---")
+                        
+                        except json.JSONDecodeError:
+                            st.error("Failed to parse meme data. Trying again with simplified format...")
+                            # Fallback to simpler format
+                            meme_url = get_meme_image(
+                                template_choice if template_choice != "Random" else "drake",
+                                "When the meme",
+                                "Doesn't generate properly"
+                            )
+                            st.image(meme_url, caption="Fallback meme", use_column_width=True)
+                    
+                    except Exception as e:
+                        st.error(f"Error with Groq API: {str(e)}")
+                        # Fallback meme on API error
+                        meme_url = get_meme_image(
+                            "drake",
+                            "When Groq API",
+                            "Throws an error"
+                        )
+                        st.image(meme_url, caption="API Error Fallback", use_column_width=True)
                 except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
+                    st.error(f"Critical error: {str(e)}")
         else:
             st.warning("Please enter a topic for meme generation!")
 
