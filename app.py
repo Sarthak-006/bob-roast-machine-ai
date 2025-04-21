@@ -26,9 +26,14 @@ client = Groq(api_key=api_key)
 
 # Define fallback models if primary models are unavailable
 FALLBACK_MODELS = {
-    "mixtral-8x7b-32768": "llama3-8b-8192",  # Fallback to Llama if Mixtral is unavailable
-    "llama3-70b-8192": "llama3-8b-8192"      # Fallback to smaller Llama if larger is unavailable
+    "mistral-saba-24b": "llama3-8b-8192",       # Fallback to Llama if Mistral is unavailable
+    "llama-3.3-70b-versatile": "llama3-8b-8192" # Fallback to smaller Llama if larger is unavailable
 }
+
+# Updated primary model to use
+DEFAULT_MODEL = "mistral-saba-24b"  # New replacement for mixtral-8x7b-32768
+HIGH_QUALITY_MODEL = "llama-3.3-70b-versatile"
+FAST_MODEL = "llama3-8b-8192"
 
 # Helper function to validate API messages
 def validate_messages(messages):
@@ -252,7 +257,7 @@ def generate_team_comedy(topic, style, intensity, temperature):
     # Define model assignments for each role
     model_assignments = {
         "writer": "llama3-8b-8192",      # Fast, creative setup generation
-        "roaster": "mixtral-8x7b-32768", # Strong reasoning for punchlines
+        "roaster": DEFAULT_MODEL, # Strong reasoning for punchlines
         "refiner": "llama3-70b-8192"     # High-quality output refinement
     }
     
@@ -333,7 +338,7 @@ with tab1:
                 try:
                     chat_completion = safe_completion_create(
                         messages=messages,
-                        model="mixtral-8x7b-32768",
+                        model=DEFAULT_MODEL,
                         temperature=temperature,
                         max_tokens=max_tokens,
                         top_p=0.9
@@ -363,7 +368,7 @@ with tab2:
                 try:
                     chat_completion = safe_completion_create(
                         messages=messages,
-                        model="mixtral-8x7b-32768",
+                        model=DEFAULT_MODEL,
                         temperature=temperature,
                         max_tokens=max_tokens,
                         top_p=0.9
@@ -394,7 +399,7 @@ with tab3:
             try:
                 chat_completion = safe_completion_create(
                     messages=messages,
-                    model="mixtral-8x7b-32768",
+                    model=DEFAULT_MODEL,
                     temperature=temperature,
                     max_tokens=max_tokens,
                     top_p=0.9
@@ -435,7 +440,7 @@ with tab4:
                         
                         chat_completion = safe_completion_create(
                             messages=messages,
-                            model="mixtral-8x7b-32768",
+                            model=DEFAULT_MODEL,
                             temperature=temperature,
                             max_tokens=max_tokens,
                             response_format={"type": "json_object"}
